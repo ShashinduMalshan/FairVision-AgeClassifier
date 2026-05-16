@@ -12,7 +12,6 @@ GOOGLE_DRIVE_FILE_ID = "1v6YP_WYMgnsoGbY0MLtSGNDeQNr-HPDW"
 
 url = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_FILE_ID}"
 
-gdown.download(url, "FairVision.pt", quiet=False)
 
 # --- 1. MODEL ARCHITECTURE ---
 class FairVisionResNet(nn.Module):
@@ -274,25 +273,47 @@ st.markdown("""
 # --- 4. LOAD MODEL ---
 @st.cache_resource
 def load_model():
+    import os
+    import torch
+    import gdown
+
+    MODEL_PATH = os.path.join(os.getcwd(), "FairVision.pt")
+    GOOGLE_DRIVE_FILE_ID = "1v6YP_WYMgnsoGbY0MLtSGNDeQNr-HPDW"
+    url = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_FILE_ID}"
+
+    # ----------------------------
+    # 1. DOWNLOAD ONLY IF MISSING
+    # ----------------------------
+    if not os.path.exists(MODEL_PATH):
+        try:
+            with st.spinner("Downloading model weights (first time only)..."):
+                tmp_path = MODEL_PATH + ".tmp"
+
+                gdown.download(url, tmp_path, quiet=False, use_cookies=False)
+
+                if os.path.exists(tmp_path):
+                    os.replace(tmp_path, MODEL_PATH)
+
+        except Exception as e:
+            if os.path.exists(MODEL_PATH + ".tmp"):
+                os.remove(MODEL_PATH + ".tmp")
+            raise RuntimeError(f"Model download failed: {e}")
+
+    # ----------------------------
+    # 2. LOAD MODEL
+    # ----------------------------
     model = FairVisionResNet(num_classes=9)
 
-    base_path = os.path.dirname(__file__)
-    model_path = os.path.join(base_path, "FairVision.pt")
+    checkpoint = torch.load(MODEL_PATH, map_location="cpu")
 
-    if not os.path.exists(model_path):
-        with st.spinner("Downloading model weights..."):
-            url = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_FILE_ID}"
-            gdown.download(url, model_path, quiet=False)
-
-    checkpoint = torch.load(model_path, map_location="cpu")
-
-    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
-        model.load_state_dict(checkpoint['model_state_dict'])
+    if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+        model.load_state_dict(checkpoint["model_state_dict"])
     else:
         model.load_state_dict(checkpoint)
 
     model.eval()
-    return model 
+    return model
+  
 
 model = load_model()
 
